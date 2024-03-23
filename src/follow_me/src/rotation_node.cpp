@@ -55,14 +55,14 @@ rotation_node() {
     pub_cmd_vel = n.advertise<geometry_msgs::Twist>("cmd_vel", 1);
 
     // communication with odometry
-    sub_odometry = n.subscribe("odom", 1, &rotation_node::odomCallback, this);
+    sub_odometry = n.subscribe("odom", 1, &rotation_node::odomCallback, this); // what here ?
 
     // communication with datmo
     sub_goal_to_reach = n.subscribe("goal_to_reach", 1, &rotation_node::goal_to_reachCallback, this);
 
     new_goal_to_reach = false;
     init_odom = false;   
-//    cond_rotation = ...;//TO COMPLETE
+    cond_rotation = true;
 
     //INFINITE LOOP TO COLLECT LASER DATA AND PROCESS THEM
     ros::Rate r(10);// this node will run at 10hz
@@ -88,21 +88,21 @@ void update()
             init_rotation();
 
         //we are performing a rotation
-        do
+        if ( cond_rotation );
         {
             compute_rotation();
             move_robot();
         }
-        while ( cond_rotation );
+        
 
     }
 
 }// update
 
-void init_rotation()
+void init_rotation() 
 {
 
-    // initial_orientation = ; //TO COMPLETE
+    initial_orientation = current_orientation;
 
     new_goal_to_reach = false;
     ROS_INFO("processing the /goal_to_reach received at (%f, %f)", goal_to_reach.x, goal_to_reach.y);   
@@ -116,6 +116,7 @@ void init_rotation()
 
         //we compute the /rotation_to_do
         rotation_to_do = acos( goal_to_reach.x / translation_to_do );
+        cond_rotation = fabs(rotation_to_do) > error_rotation_threshold;
 
         if ( goal_to_reach.y < 0 )
             rotation_to_do *=-1;
@@ -140,7 +141,7 @@ void compute_rotation()
 
     ROS_INFO("current_orientation: %f, initial_orientation: %f", current_orientation*180/M_PI, initial_orientation*180/M_PI);
 
-    //rotation_done = ...; TO COMPLETE
+    rotation_done = current_orientation - initial_orientation;
 
     //do not forget that rotation_done must always be between -M_PI and +M_PI
     if ( rotation_done > M_PI )
@@ -155,7 +156,7 @@ void compute_rotation()
             rotation_done += 2*M_PI;
         }
 
-    //error_rotation = ...; TO COMPLETE
+    error_rotation = rotation_to_do - rotation_done;
     //do not forget that error_rotation must always be between -M_PI and +M_PI
     if ( error_rotation > M_PI )
     {
@@ -169,7 +170,10 @@ void compute_rotation()
             error_rotation += 2*M_PI;
         }
 
-    //cond_rotation = ...; cond_rotation is used to control if we stop or not the pid TO COMPLETE. take care that rotation_to_do could be negative
+    cond_rotation = (fabs(rotation_to_do) - fabs(rotation_done)) > error_rotation_threshold;
+ 
+    ROS_INFO("rotation_done: %f, cond_rotation: %i", fabs(rotation_done), cond_rotation);
+
     ROS_INFO("rotation_to_do: %f, rotation_done: %f, error_rotation: %f, cond_rotation: %i", rotation_to_do*180/M_PI, rotation_done*180/M_PI, error_rotation*180/M_PI, cond_rotation);
 
     rotation_speed = 0;
@@ -177,15 +181,15 @@ void compute_rotation()
     {
         //Implementation of a PID controller for rotation_to_do;
 
-        //float error_derivation_rotation = ...;
+        float error_derivation_rotation = error_rotation - error_previous_rotation; 
         error_previous_rotation = error_rotation;
-        //ROS_INFO("error_derivation_rotation: %f", error_derivation_rotation);
+        ROS_INFO("error_derivation_rotation: %f", error_derivation_rotation);
 
-        //error_integral_rotation = ...;
-        //ROS_INFO("error_integral_rotation: %f", error_integral_rotation);
+        error_integral_rotation += error_rotation;
+        ROS_INFO("error_integral_rotation: %f", error_integral_rotation);
 
         //control of rotation with a PID controller
-        //rotation_speed = ...;
+        rotation_speed = kpr * error_rotation + kir * error_integral_rotation + kdr * error_derivation_rotation;
         ROS_INFO("rotation_speed: %f", rotation_speed*180/M_PI);
     }
     else
@@ -205,10 +209,9 @@ void move_robot()
     twist.angular.y = 0;
     twist.angular.z = 0;
 
-    // comment these 3 lines only when your pid works
-    pub_cmd_vel.publish(twist);
-    ROS_INFO("press enter to continue");
-    getchar();
+    // // comment these 2 lines only when your pid works
+    // ROS_INFO("press enter to continue");
+    // getchar();
 
     twist.angular.z = rotation_speed;
     pub_cmd_vel.publish(twist);
@@ -227,6 +230,8 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr& o) {
 
 void goal_to_reachCallback(const geometry_msgs::Point::ConstPtr& g) {
 // process the goal received from moving_persons detector
+
+    ROS_INFO("(rotation_node) RECIEVED /goal_to_reach, x=%f, y=%f", g->x, g->y);
 
     new_goal_to_reach = true;
     goal_to_reach = *g;

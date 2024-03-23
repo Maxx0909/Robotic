@@ -119,7 +119,7 @@ void update() {
         {
             compute_rotation();
             compute_translation();
-            //cond_goal = ... DO NOT FORGET TO UPDATE cond_goal
+            cond_goal = fabs(translation_to_do) > error_translation_threshold || fabs(rotation_to_do) > error_rotation_threshold;
             combine_rotation_and_translation();            
             move_robot();
         }
@@ -153,12 +153,12 @@ void init_action()
             rotation_to_do *=-1;
 
         //we initialize the pid for the control of rotation
-        //initial_orientation = ; //TO COMPLETE
+        initial_orientation = current_orientation ;
         error_integral_rotation = 0;
         error_previous_rotation = 0;
 
         //we initialize the pid for the control of translation
-        //initial_position = ; //TO COMPLETE
+        initial_position = current_position; 
         error_integral_translation = 0;
         error_previous_translation = 0;
 
@@ -176,55 +176,85 @@ void compute_rotation()
 {
 
     ROS_INFO("current_orientation: %f, initial_orientation: %f", current_orientation*180/M_PI, initial_orientation*180/M_PI);
-    //rotation_done = ...;
+
+    rotation_done = current_orientation - initial_orientation;
 
     //do not forget that rotation_done must always be between -M_PI and +M_PI
+    if ( rotation_done > M_PI )
+    {
+        ROS_WARN("rotation_done > 180 degrees: %f degrees -> %f degrees", rotation_done*180/M_PI, (rotation_done-2*M_PI)*180/M_PI);
+        rotation_done -= 2*M_PI;
+    }
+    else
+        if ( rotation_done < -M_PI )
+        {
+            ROS_WARN("rotation_done < -180 degrees: %f degrees -> %f degrees", rotation_done*180/M_PI, (rotation_done+2*M_PI)*180/M_PI);
+            rotation_done += 2*M_PI;
+        }
 
-    //error_rotation = ...;
-    ROS_INFO("rotation_to_do: %f, rotation_done: %f, error_rotation: %f", rotation_to_do*180/M_PI, rotation_done*180/M_PI, error_rotation*180/M_PI);
+    error_rotation = rotation_to_do - rotation_done;
+    //do not forget that error_rotation must always be between -M_PI and +M_PI
+    if ( error_rotation > M_PI )
+    {
+        ROS_WARN("error_rotation_done > 180 degrees: %f degrees -> %f degrees", error_rotation*180/M_PI, (error_rotation-2*M_PI)*180/M_PI);
+        error_rotation -= 2*M_PI;
+    }
+    else
+        if ( error_rotation < -M_PI )
+        {
+            ROS_WARN("error_rotation < -180 degrees: %f degrees -> %f degrees", error_rotation*180/M_PI, (error_rotation+2*M_PI)*180/M_PI);
+            error_rotation += 2*M_PI;
+        }
 
-    //cond_rotation = ...; cond_rotation is used to control if we stop or not the pid
+    cond_rotation = (fabs(rotation_to_do) - fabs(rotation_done)) > error_rotation_threshold;
+ 
+    ROS_INFO("rotation_done: %f, cond_rotation: %i", fabs(rotation_done), cond_rotation);
 
+    ROS_INFO("rotation_to_do: %f, rotation_done: %f, error_rotation: %f, cond_rotation: %i", rotation_to_do*180/M_PI, rotation_done*180/M_PI, error_rotation*180/M_PI, cond_rotation);
+
+    rotation_speed = 0;
     if ( cond_rotation )
     {
         //Implementation of a PID controller for rotation_to_do;
 
-        //float error_derivation_rotation = ...;
-        //ROS_INFO("error_derivation_rotation: %f", error_derivation_rotation);
+        float error_derivation_rotation = error_rotation - error_previous_rotation; 
+        error_previous_rotation = error_rotation;
+        ROS_INFO("error_derivation_rotation: %f", error_derivation_rotation);
 
-        //error_integral_rotation = ...;
-        //ROS_INFO("error_integral_rotation: %f", error_integral_rotation);
+        error_integral_rotation += error_rotation;
+        ROS_INFO("error_integral_rotation: %f", error_integral_rotation);
 
         //control of rotation with a PID controller
-        //rotation_speed = ...;
+        rotation_speed = kpr * error_rotation + kir * error_integral_rotation + kdr * error_derivation_rotation;
         ROS_INFO("rotation_speed: %f", rotation_speed*180/M_PI);
     }
 
-}//compute_rotation
+}
 
 void compute_translation()
 {
 
     ROS_INFO("current_position: (%f, %f), initial_position: (%f, %f)", current_position.x, current_position.y, initial_position.x, initial_position.y);
-    // translation_done = ...
-    //error_translation = ...
+    translation_done = distancePoints(initial_position, current_position);
+    error_translation = translation_to_do - translation_done; // should it be fabs ? 
 
     ROS_INFO("translation_to_do: %f, translation_done: %f, error_translation: %f", translation_to_do, translation_done, error_translation);
 
-    //cond_translation = ...; cond_translation is used to control if we stop or not the pid for translation
-
+    cond_translation = fabs(error_translation) < error_translation_threshold ? 0 : 1;
+;
     if ( cond_translation )
     {
         //Implementation of a PID controller for translation_to_do;
 
-        // float error_derivation_translation = ...;
-        //ROS_INFO("error_derivation_translation: %f", error_derivation_translation);
+        float error_derivation_translation = error_translation - error_previous_translation;
+        error_previous_translation = error_translation;
+        ROS_INFO("error_derivation_translation: %f", error_derivation_translation);
 
-        // error_integral_translation = ...
-        //ROS_INFO("error_integral_translation: %f", error_integral_translation);
+        error_integral_translation += error_translation; 
+        ROS_INFO("error_integral_translation: %f", error_integral_translation);
 
-        //control of translation with a PID controller
-        //translation_speed = ...
+        //control of translation with a PID controllers
+        translation_speed = kpt * error_translation + kit * error_integral_translation + kdt * error_derivation_translation; 
         ROS_INFO("translation_speed: %f", translation_speed);
     }    
 
@@ -233,12 +263,12 @@ void compute_translation()
 void combine_rotation_and_translation()
 {
 
-    float coef_rotation;// = ...;
+    float coef_rotation = fabs(error_rotation) / (M_PI / 2);
     if ( coef_rotation >= 1 )
         coef_rotation = 1;
     float coef_translation = 1 - coef_rotation;
 
-    //translation_speed = ...
+    translation_speed = coef_translation * translation_speed;
     ROS_INFO("coef_rotation: %f, rotation_speed: %f, coef_translation: %f, translation_speed: %f", coef_rotation, rotation_speed*180/M_PI, coef_translation, translation_speed);
 
 }//combine_rotation_and_translation

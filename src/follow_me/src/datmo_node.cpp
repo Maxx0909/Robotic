@@ -18,6 +18,36 @@ void datmo::update()
         ROS_INFO("New data of laser received");
         ROS_INFO("New data of robot_moving received");        
 
+        detect_motion();
+        display_motion();
+
+        perform_clustering();
+        display_clustering();
+
+        detect_legs();
+        display_legs();
+
+        detect_persons(); 
+        display_persons();
+
+        if(is_person_tracked){
+            track_a_person(); // process all the persons, even static
+            display_a_tracked_person();
+
+            ROS_INFO("===================TRACKING A PERSON=====================");     
+
+            if (frequency <= frequency_init || uncertainty >= uncertainty_max) { // lost the person
+                is_person_tracked = false;
+            }
+        } else if (!is_person_tracked || (!current_robot_moving && previous_robot_moving)) {
+            detect_a_moving_person();
+
+            frequency = frequency_init;
+            uncertainty = uncertainty_min;
+        }
+
+
+
         // if the robot is not moving then we can perform moving person detection
         if (!current_robot_moving)
         {
@@ -50,38 +80,12 @@ void datmo::update()
                 ROS_INFO("robot was moving");
             }
         }
-        detect_motion();
-        display_motion();
-
-
-        perform_clustering();
-        display_clustering();
+        
+        
+// at first detection, if found - make tracking in place
 
         reset_motion();
 
-        // clustering
-        // uncomment ONLY when you have implemented and tested the detection of motion
-        /*
-
-
-        // detection of legs
-        // uncomment ONLY when you have implemented and tested the clustering
-        /*
-        detect_legs(); // to detect legs using cluster
-        display_legs();
-
-        // detection of persons
-        // uncomment ONLY when you have implemented and tested the detection of legs
-        /*detect_persons(); // to detect persons using legs detected
-        display_persons();
-        detect_a_moving_person();
-
-        //TO COMPLETE
-        // When do we do detection and when do we do tracking ?
-        //detect_a_moving_person();  
-        //track_a_moving_person();
-
-        /*do not change this part*/
         populateMarkerReference();
         new_laser = false;
         new_robot = false;
