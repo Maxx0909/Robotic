@@ -7,7 +7,7 @@ localization::localization()
 
     sub_scan = n.subscribe("scan", 1, &localization::scanCallback, this);
     sub_odometry = n.subscribe("odom", 1, &localization::odomCallback, this);
-    pub_localization_marker = n.advertise<visualization_msgs::Marker>("localization_marker", 1); // Preparing a topic to publish our results. This will be used by the visualization tool rviz
+    pub_localization_marker = n.advertise<visualization_msgs::Marker>("localization_marker", 1000); // Preparing a topic to publish our results. This will be used by the visualization tool rviz
     sub_position = n.subscribe("initialpose", 1, &localization::positionCallback, this);
 
     pub_localization = n.advertise<geometry_msgs::Point>("localization", 1); // Preparing a topic to publish the goal to reach.
@@ -54,17 +54,25 @@ void localization::initialize_localization()
 
     ROS_INFO("initialize localization");
 
-    estimated_position = initial_position;
-    estimated_orientation = initial_orientation;
-    ROS_INFO("initial_position(%f, %f, %f): score = %i", initial_position.x, initial_position.y, initial_orientation * 180 / M_PI, score_max);
-    reset_display();
-    display_localization();
-    display_markers();
+    ROS_INFO("initial_position(%f, %f, %f): score = %i", initial_position.x, initial_position.y, initial_orientation * 180 / M_PI, sensor_model(initial_position.x, initial_position.y, initial_orientation));
 
-    float min_x, max_x, min_y, max_y, min_orientation, max_orientation;
+    // graphical display of the initial position
+    reset_display();
+    display_localization(initial_position, initial_orientation);
+    display_markers();
+    ROS_INFO("press enter to continue");
+    getchar();
+
+    float min_x, max_x, min_y, max_y;
+
+    min_x = initial_position.x - distance_to_travel;
+    min_y = initial_position.y - distance_to_travel;
+    max_x = initial_position.x + distance_to_travel;
+    max_y = initial_position.y + distance_to_travel;
+
     //we search the position with the highest sensor_model in a square of 2x2 meters around the initial_position and with all possible orientations  
-    ROS_INFO("possible positions to tests: (%f, %f, %f) -> (%f, %f, %f)", min_x, min_y, min_orientation, max_x, max_y, max_orientation);
-    find_best_position(min_x, max_x, min_y, max_y, -M_PI / 2, M_PI / 2);
+    ROS_INFO("possible positions to tests: (%f, %f) -> (%f, %f)", min_x, min_y, max_x, max_y);
+    find_best_position(min_x, max_x, min_y, max_y, -M_PI, M_PI);
 
     ROS_INFO("initialize localization done");
 
@@ -98,18 +106,30 @@ void localization::estimate_position()
     ROS_INFO("estimate_position");
 
     ROS_INFO("previous position: (%f, %f, %f)", estimated_position.x, estimated_position.y, estimated_orientation * 180 / M_PI);
-    ROS_INFO("predicted position(%f, %f, %f): score = %i", predicted_position.x, predicted_position.y, predicted_orientation * 180 / M_PI, score_max);
+    ROS_INFO("predicted position(%f, %f, %f): score = %i", predicted_position.x, predicted_position.y, predicted_orientation * 180 / M_PI, sensor_model(predicted_position.x, predicted_position.y, predicted_orientation));
 
-    estimated_position = predicted_position;
-    estimated_orientation = predicted_orientation;
+    // graphical display of the predicted_position
     reset_display();
-    display_localization();
+    display_localization(predicted_position, predicted_orientation);
     display_markers();
-
+    // ROS_INFO("press enter to continue");
+    // getchar();
+    
     float min_x, max_x, min_y, max_y, min_orientation, max_orientation;
+
+    min_x = predicted_position.x - 0.5;
+    max_x = predicted_position.x + 0.5;
+
+    min_y = predicted_position.y - 0.5;
+    max_y = predicted_position.y + 0.5;
+
+    min_orientation =  predicted_orientation -M_PI/6;
+    max_orientation = predicted_orientation + M_PI/6;
+
     //we search the position with the highest sensor_model in a square of 1x1 meter around the predicted_position and with orientations around the predicted_orientation -M_PI/6 and +M_PI/6
     ROS_INFO("possible positions to tests: (%f, %f, %f) -> (%f, %f, %f)", min_x, min_y, min_orientation, max_x, max_y, max_orientation);
-    find_best_position(min_x, max_x, min_y, max_y, -M_PI / 2, M_PI / 2);
+    ROS_WARN("have you initialized min_x, max_x, min_y, max_y, min_orientation, max_orientation ?");
+    find_best_position(min_x, max_x, min_y, max_y, min_orientation, max_orientation);
 
     ROS_INFO("estimate_position done");
 }
@@ -121,15 +141,63 @@ void localization::find_best_position(float min_x, float max_x, float min_y, flo
     odom_last = odom_current;
     odom_last_orientation = odom_current_orientation;
 
+    int best_score = -1;
+
+    ROS_INFO("MINX MAXX MINY MAXY(%f, %f, %f, %F)", min_x, max_x, min_y, max_y);
+
+
+    for (float loopX = min_x; loopX < max_x; loopX += 0.05) {
+        for (float loopY = min_y; loopY < max_y; loopY += 0.05) {
+
+            int cellValue = cell_value(loopX, loopY);
+
+            ROS_INFO("CELL VALUE (%f, %f, %i)", loopX, loopY, cellValue);
+
+            if (cell_value(loopX, loopY)) {
+                continue;
+            }
+
+            ROS_INFO(" THETAAAAAAAA (%f, %f)", min_orientation, max_orientation);
+
+            for (float loopTheta = min_orientation; loopTheta < max_orientation; loopTheta += M_PI / 36) {
+                int score_current = sensor_model(loopX, loopY, loopTheta);
+
+                ROS_INFO("(%f, %f, %f): score = %i", loopX, loopY, loopTheta*180/M_PI, score_current);
+
+                if (score_current > best_score) {
+
+                    ROS_INFO(" FOUND BETTER SCORE (%f, %f, %f): score = %i", loopX, loopY, loopTheta*180/M_PI, score_current);
+
+                    best_score = score_current;
+                    geometry_msgs::Point p;
+                    p.x = loopX;
+                    p.y = loopY;
+
+                    estimated_position.x = p.x;
+                    estimated_position.y = p.y;
+                    estimated_orientation = loopTheta;
+                    reset_display();
+                    display_localization(estimated_position, estimated_orientation);
+                    display_markers();
+                    // ROS_INFO("press enter to continue");
+                    // getchar();
+                }
+
+            }
+        }
+    } 
+
+
     /*loop over all the possible positions (x, y, theta) {
      *  * the increment on x and y is of 5cms and on theta is of 5 degrees
         if ( cell_value(loop_x, loop_y) == 0 ) { // robair can only be at a free cell
             int score_current = sensor_model(loop_x, loop_y, o);
             ROS_INFO("(%f, %f, %f): score = %i", loop_x, loop_y, o*180/M_PI, score_current);
-            populateMarkerTopic();
-            //we store the maximum score over all the possible positions in estimated_position and score_max
-                       reset_display();
-                        display_localization();
+            //we store the maximum score over all the possible positions in estimated_position, estimated_orientation and score_max
+                        estimated_position = ...;
+                        estimated_orientation = ...;
+                        reset_display();
+                        display_localization(estimated_position, estimated_orientation);
                         display_markers();
                         ROS_INFO("press enter to continue");
                         getchar();
@@ -137,6 +205,7 @@ void localization::find_best_position(float min_x, float max_x, float min_y, flo
     }*/
 
     ROS_INFO("best_position found");
+    ROS_INFO(" BEST POSITION FOUND (%f, %f, %f): score = %i", estimated_position.x, estimated_position.y, estimated_orientation, best_score);
 }
 
 int localization::sensor_model(float x, float y, float o)
@@ -145,15 +214,13 @@ int localization::sensor_model(float x, float y, float o)
     // for each hit of the laser, we compute its position in the map and check if it is occupied or not
     float uncertainty = 0.05;
 
-    // ROS_INFO("compute_score");
-    // nb_pts = 0;
     int score_current = 0;
     float beam_angle = angle_min;
     for (int loop = 0; loop < nb_beams; loop++, beam_angle += angle_inc)
     {
         // TO COMPLETE
-        //hit[loop].x = ...;
-        //hit[loop].y = ..;
+        hit[loop].x = x + r[loop] * cos(o + theta[loop]);
+        hit[loop].y = y + r[loop] * sin(o + theta[loop]);;
 
         cell_occupied[loop] = false;
         for (float loop_x = hit[loop].x - uncertainty; loop_x <= hit[loop].x + uncertainty; loop_x += uncertainty)
@@ -164,221 +231,6 @@ int localization::sensor_model(float x, float y, float o)
         if (cell_occupied[loop]) /*|| ( !valid[loop] && cell_free )*/
             score_current++;
     }
-
-    // ROS_INFO("score_current = %i", score_current);
-    // ROS_INFO("done");
-
-    return (score_current);
-}
-
-int localization::sensor_model_with_valid(float x, float y, float o)
-{
-    // compute the score of the position (x, y, o)
-    // for each hit of the laser, we compute its position in the map and check if it is occupied or not
-    float uncertainty = 0.05;
-
-    nb_pts = 0;
-    // we add the current hit to the hits to display
-    display[nb_pts].x = x;
-    display[nb_pts].y = y;
-    display[nb_pts].z = 0;
-
-    colors[nb_pts].r = 0;
-    colors[nb_pts].g = 0;
-    colors[nb_pts].b = 1;
-    colors[nb_pts].a = 1.0;
-    nb_pts++;
-
-    // we add the current hit to the hits to display
-    display[nb_pts].x = x + cos(o);
-    display[nb_pts].y = y + sin(o);
-    display[nb_pts].z = 0;
-
-    colors[nb_pts].r = 1;
-    colors[nb_pts].g = 1;
-    colors[nb_pts].b = 0;
-    colors[nb_pts].a = 1.0;
-    nb_pts++;
-
-    // ROS_INFO("compute_score");
-    // nb_pts = 0;
-    int score_current = 0;
-    float beam_angle = angle_min;
-    for (int loop = 0; loop < nb_beams; loop++, beam_angle += angle_inc)
-    {
-        //    if ( valid[loop] ) {
-        //      ROS_INFO("loop = %i", loop);
-        geometry_msgs::Point hit;
-        hit.x = x + r[loop] * cos(o + beam_angle);
-        hit.y = y + r[loop] * sin(o + beam_angle);
-
-        // we add the current hit to the hits to display
-        display[nb_pts].x = hit.x;
-        display[nb_pts].y = hit.y;
-        display[nb_pts].z = 0;
-
-        bool cell_occupied = false;
-        for (float loop_x = hit.x - uncertainty; loop_x <= hit.x + uncertainty; loop_x += uncertainty)
-            for (float loop_y = hit.y - uncertainty; loop_y <= hit.y + uncertainty; loop_y += uncertainty)
-                // the current hit of the laser corresponds to an occupied cell
-                cell_occupied = cell_occupied || (cell_value(loop_x, loop_y) == 100);
-
-        if ((valid[loop] && cell_occupied) /*|| ( !valid[loop] && cell_free )*/)
-        {
-            score_current++;
-            // ROS_INFO("score_current = %i", score_current);
-
-            // when matching is ok: the hit of the laser is green
-            colors[nb_pts].r = 0;
-            colors[nb_pts].g = 1;
-            colors[nb_pts].b = 0;
-            colors[nb_pts].a = 1.0;
-            nb_pts++;
-        }
-        // the current hit of the laser corresponds to a free cell
-        else if (valid[loop]) // pour supprimer les donnees non valides lors de l'affichage
-        {
-
-            // when matching is not ok: the hit of the laser is red
-            colors[nb_pts].r = 1;
-            colors[nb_pts].g = 0;
-            colors[nb_pts].b = 0;
-            colors[nb_pts].a = 1.0;
-
-            nb_pts++;
-        }
-        else
-        {
-
-            // when matching is not ok: the hit of the laser is red
-            colors[nb_pts].r = 1;
-            colors[nb_pts].g = 1;
-            colors[nb_pts].b = 1;
-            colors[nb_pts].a = 1.0;
-
-            nb_pts++;
-        }
-    }
-
-    // ROS_INFO("score_current = %i", score_current);
-    // ROS_INFO("done");
-
-    return (score_current);
-}
-
-int localization::compute_score2(float x, float y, float o)
-{
-    // compute the score of the position (x, y, o)
-    // for each hit of the laser, we compute its position in the map and check if it is occupied or not
-    float uncertainty = 0.05;
-
-    nb_pts = 0;
-    // we add the current hit to the hits to display
-    display[nb_pts].x = x;
-    display[nb_pts].y = y;
-    display[nb_pts].z = 0;
-
-    colors[nb_pts].r = 0;
-    colors[nb_pts].g = 0;
-    colors[nb_pts].b = 1;
-    colors[nb_pts].a = 1.0;
-    nb_pts++;
-
-    // we add the current hit to the hits to display
-    display[nb_pts].x = x + cos(o);
-    display[nb_pts].y = y + sin(o);
-    display[nb_pts].z = 0;
-
-    colors[nb_pts].r = 1;
-    colors[nb_pts].g = 1;
-    colors[nb_pts].b = 0;
-    colors[nb_pts].a = 1.0;
-    nb_pts++;
-
-    // ROS_INFO("compute_score");
-    // nb_pts = 0;
-    bool started = false;
-    int best_start = 0;
-    int best_end = 0;
-    int score_current = 0;
-    int current_start = 0;
-    int current_end = -1;
-    float beam_angle = angle_min;
-    for (int loop = 0; loop < nb_beams; loop++, beam_angle += angle_inc)
-    {
-        //    if ( valid[loop] ) {
-        //      ROS_INFO("loop = %i", loop);
-        geometry_msgs::Point hit;
-        hit.x = x + r[loop] * cos(o + beam_angle);
-        hit.y = y + r[loop] * sin(o + beam_angle);
-
-        // we add the current hit to the hits to display
-        display[nb_pts].x = hit.x;
-        display[nb_pts].y = hit.y;
-        display[nb_pts].z = 0;
-        nb_pts++;
-
-        bool cell_occupied = false;
-        for (float loop_x = hit.x - uncertainty; loop_x <= hit.x + uncertainty; loop_x += uncertainty)
-            for (float loop_y = hit.y - uncertainty; loop_y <= hit.y + uncertainty; loop_y += uncertainty)
-                // the current hit of the laser corresponds to an occupied cell
-                cell_occupied = cell_occupied || (cell_value(loop_x, loop_y) == 100);
-
-        if (cell_occupied)
-        {
-            if (!started)
-            {
-                started = true;
-                current_start = loop;
-                current_end = loop;
-            }
-            else
-                current_end = loop;
-            // ROS_INFO("current_start = %i, current_end = %i, score_current: %i", current_start, current_end, current_end-current_start+1);
-        }
-        else
-        {
-            /*if ( started )
-                ROS_WARN("current_start = %i, current_end = %i, score_current: %i", current_start, current_end, current_end-current_start+1);*/
-
-            started = false;
-            if (current_end - current_start + 1 > score_current)
-            {
-                score_current = current_end - current_start + 1;
-                best_start = current_start;
-                best_end = current_end;
-                // ROS_WARN("best_start = %i, best_end = %i, score_current: %i", best_start, best_end, score_current);
-            }
-        }
-    }
-    nb_pts = 2;
-    beam_angle = angle_min;
-    for (int loop = 0; loop < nb_beams; loop++, beam_angle += angle_inc)
-    {
-
-        if (loop >= best_start && loop <= best_end)
-        {
-            // when matching is ok: the hit of the laser is green
-            colors[nb_pts].r = 0;
-            colors[nb_pts].g = 1;
-            colors[nb_pts].b = 0;
-            colors[nb_pts].a = 1.0;
-        }
-        // the current hit of the laser corresponds to a free cell
-        else
-        {
-            // when matching is not ok: the hit of the laser is red
-            colors[nb_pts].r = 1;
-            colors[nb_pts].g = 0;
-            colors[nb_pts].b = 0;
-            colors[nb_pts].a = 1.0;
-        }
-        nb_pts++;
-    }
-
-    // ROS_INFO("best_start = %i, best_end = %i", best_start, best_end);
-    // ROS_INFO("score_current = %i", score_current);
-    // ROS_INFO("done");
 
     return (score_current);
 }
@@ -399,6 +251,13 @@ int localization::cell_value(float x, float y)
     }
     else
         return (-1);
+}
+
+// Distance between two points
+float localization::distancePoints(geometry_msgs::Point pa, geometry_msgs::Point pb)
+{
+
+    return sqrt(pow((pa.x - pb.x), 2.0) + pow((pa.y - pb.y), 2.0));
 }
 
 // CALLBACK
@@ -465,7 +324,7 @@ void localization::reset_display()
     nb_pts = 0;
 }
 
-void localization::display_localization()
+void localization::display_localization(geometry_msgs::Point position, float orientation)
 {
 
     // we add the current hit to the hits to display
@@ -554,11 +413,4 @@ void localization::display_markers()
     }
 
     pub_localization_marker.publish(marker);
-}
-
-// Distance between two points
-float localization::distancePoints(geometry_msgs::Point pa, geometry_msgs::Point pb)
-{
-
-    return sqrt(pow((pa.x - pb.x), 2.0) + pow((pa.y - pb.y), 2.0));
 }

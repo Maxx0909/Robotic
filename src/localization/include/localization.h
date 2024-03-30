@@ -88,8 +88,6 @@ private:
     //to store the hits of the laser in the frame of the map
     geometry_msgs::Point hit[1000];
     bool cell_occupied[1000];
-    geometry_msgs::Point position;
-    float orientation;
 
 public:
 
@@ -105,9 +103,10 @@ void predict_position();
 void estimate_position(); 
 void find_best_position(float min_x, float max_x, float min_y, float max_y, float min_orientation, float max_orientation); 
 int sensor_model(float x, float y, float o);
-int sensor_model_with_valid(float x, float y, float o);
-int compute_score2(float x, float y, float o);
 int cell_value(float x, float y);
+
+// Distance between two points
+float distancePoints(geometry_msgs::Point pa, geometry_msgs::Point pb);
 
 //CALLBACK
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -116,15 +115,12 @@ void scanCallback(const sensor_msgs::LaserScan::ConstPtr& scan);
 void odomCallback(const nav_msgs::Odometry::ConstPtr& o);
 void positionCallback(const geometry_msgs::PoseWithCovarianceStamped::ConstPtr& p);
 
-// Distance between two points
-float distancePoints(geometry_msgs::Point pa, geometry_msgs::Point pb);
-
 // GRAPHICAL DISPLAY
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 // Draw the field of view and other references
     void reset_display();
-    void display_localization();
+    void display_localization(geometry_msgs::Point position, float orientation);
     void display_markers();
 
 };
