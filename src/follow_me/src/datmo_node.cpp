@@ -1,22 +1,23 @@
 #include <datmo.h>
 
-//UPDATE
+// UPDATE
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-void datmo::update() 
+void datmo::update()
 {
 
     // we wait for new data of the laser and of the robot_moving_node to perform laser processing
-    if ( new_laser && new_robot ) 
+    if (new_laser && new_robot)
     {
-        if (!static_background_stored) {
+        if (!static_background_stored)
+        {
             store_background();
             static_background_stored = true;
         }
 
         ROS_INFO("\n");
         ROS_INFO("New data of laser received");
-        ROS_INFO("New data of robot_moving received");        
+        ROS_INFO("New data of robot_moving received");
 
         detect_motion();
         display_motion();
@@ -27,26 +28,26 @@ void datmo::update()
         detect_legs();
         display_legs();
 
-        detect_persons(); 
+        detect_persons();
         display_persons();
 
-        if(is_person_tracked){
+        if (is_person_tracked)
+        {
             track_a_person(); // process all the persons, even static
             display_a_tracked_person();
 
-            ROS_INFO("===================TRACKING A PERSON=====================");     
-
-            if (frequency <= frequency_init || uncertainty >= uncertainty_max) { // lost the person
+            if (frequency <= frequency_init || uncertainty >= uncertainty_max)
+            { // lost the person
                 is_person_tracked = false;
             }
-        } else if (!is_person_tracked || (!current_robot_moving && previous_robot_moving)) {
+        }
+        else if (!is_person_tracked || (!current_robot_moving && previous_robot_moving))
+        {
             detect_a_moving_person();
 
             frequency = frequency_init;
             uncertainty = uncertainty_min;
         }
-
-
 
         // if the robot is not moving then we can perform moving person detection
         if (!current_robot_moving)
@@ -80,28 +81,25 @@ void datmo::update()
                 ROS_INFO("robot was moving");
             }
         }
-        
-        
-// at first detection, if found - make tracking in place
+
+        // at first detection, if found - make tracking in place
 
         reset_motion();
 
         populateMarkerReference();
         new_laser = false;
         new_robot = false;
-        previous_robot_moving = current_robot_moving;       
-        
+        previous_robot_moving = current_robot_moving;
     }
     else
     {
-        if ( !init_laser )
+        if (!init_laser)
             ROS_WARN("waiting for laser data: run a rosbag");
-        else
-            if ( !init_robot )
-                ROS_WARN("waiting for robot_moving_node: rosrun follow_me robot_moving_node");
+        else if (!init_robot)
+            ROS_WARN("waiting for robot_moving_node: rosrun follow_me robot_moving_node");
     }
 
-}// update
+} // update
 
 int main(int argc, char **argv)
 {

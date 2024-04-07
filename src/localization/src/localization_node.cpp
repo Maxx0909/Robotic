@@ -5,8 +5,7 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
 void localization::update() 
 {
-
-    //ROS_INFO("odom = %i, laser = %i, position = %i", init_odom, init_laser, init_position);
+    
     if ( init_odom && init_laser && init_position ) {
         if ( !localization_initialized ) {
             initialize_localization();

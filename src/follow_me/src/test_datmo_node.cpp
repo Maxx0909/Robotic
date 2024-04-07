@@ -79,11 +79,11 @@ public:
             float dist = distancePoints(goal_to_reach, ideal_goal_to_reach);
 
             ROS_INFO("goal_to_reach(%f, %f) is located at %f from ideal_goal_to_reach(%f, %f)",
-                goal_to_reach.x,
-                goal_to_reach.y,
-                dist,
-                ideal_goal_to_reach.x,
-                ideal_goal_to_reach.y);
+                     goal_to_reach.x,
+                     goal_to_reach.y,
+                     dist,
+                     ideal_goal_to_reach.x,
+                     ideal_goal_to_reach.y);
 
             if (dist > 0.5)
             {
@@ -91,7 +91,7 @@ public:
                 ROS_WARN("goal_to_reach is too far from ideal_goal_to_reach");
                 nb_pts = 0;
 
-                //the ideal_goal_to_reach is dispayed in green color
+                // the ideal_goal_to_reach is dispayed in green color
                 display[nb_pts] = ideal_goal_to_reach;
                 colors[nb_pts].r = 0;
                 colors[nb_pts].g = 1;
@@ -99,15 +99,13 @@ public:
                 colors[nb_pts].a = 1.0;
                 nb_pts++;
 
-                //the goal_to_reach is dispayed in red color
+                // the goal_to_reach is dispayed in red color
                 display[nb_pts] = goal_to_reach;
                 colors[nb_pts].r = 1;
                 colors[nb_pts].g = 0;
                 colors[nb_pts].b = 0;
                 colors[nb_pts].a = 1.0;
                 nb_pts++;
-
-
             }
         }
 
@@ -123,8 +121,7 @@ public:
         new_goal_to_reach = true;
         init_goal_to_reach = true;
         goal_to_reach = *g;
-      //  ROS_INFO("new goal_to_reach(%f, %f) published", g->x, g->y);
-
+        //  ROS_INFO("new goal_to_reach(%f, %f) published", g->x, g->y);
     }
 
     void ideal_goal_to_reachCallback(const geometry_msgs::Point::ConstPtr &g)
@@ -134,8 +131,7 @@ public:
         new_ideal_goal_to_reach = true;
         init_ideal_goal_to_reach = true;
         ideal_goal_to_reach = *g;
-        //ROS_INFO("new ideal_goal_to_reach(%f, %f) published", g->x, g->y);
-
+        // ROS_INFO("new ideal_goal_to_reach(%f, %f) published", g->x, g->y);
     }
 
     // Distance between two points
@@ -145,104 +141,103 @@ public:
         return sqrt(pow((pa.x - pb.x), 2.0) + pow((pa.y - pb.y), 2.0));
     }
 
-// Draw the field of view and other references
-void populateMarkerReference()
-{
-
-    visualization_msgs::Marker references;
-
-    references.header.frame_id = "laser";
-    references.header.stamp = ros::Time::now();
-    references.ns = "datmo_marker";
-    references.id = 1;
-    references.type = visualization_msgs::Marker::LINE_STRIP;
-    references.action = visualization_msgs::Marker::ADD;
-    references.pose.orientation.w = 1;
-
-    references.scale.x = 0.02;
-
-    references.color.r = 1.0f;
-    references.color.g = 1.0f;
-    references.color.b = 1.0f;
-    references.color.a = 1.0;
-    geometry_msgs::Point v;
-
-    v.x = 0.02 * cos(-2.092350);
-    v.y = 0.02 * sin(-2.092350);
-    v.z = 0.0;
-    references.points.push_back(v);
-
-    v.x = 5.6 * cos(-2.092350);
-    v.y = 5.6 * sin(-2.092350);
-    v.z = 0.0;
-    references.points.push_back(v);
-
-    float beam_angle = -2.092350 + 0.0057856218349117;
-    // first and last beam are already included
-    for (int i = 0; i < 723; i++, beam_angle += 0.0057856218349117)
+    // Draw the field of view and other references
+    void populateMarkerReference()
     {
-        v.x = 5.6 * cos(beam_angle);
-        v.y = 5.6 * sin(beam_angle);
+
+        visualization_msgs::Marker references;
+
+        references.header.frame_id = "laser";
+        references.header.stamp = ros::Time::now();
+        references.ns = "datmo_marker";
+        references.id = 1;
+        references.type = visualization_msgs::Marker::LINE_STRIP;
+        references.action = visualization_msgs::Marker::ADD;
+        references.pose.orientation.w = 1;
+
+        references.scale.x = 0.02;
+
+        references.color.r = 1.0f;
+        references.color.g = 1.0f;
+        references.color.b = 1.0f;
+        references.color.a = 1.0;
+        geometry_msgs::Point v;
+
+        v.x = 0.02 * cos(-2.092350);
+        v.y = 0.02 * sin(-2.092350);
         v.z = 0.0;
         references.points.push_back(v);
+
+        v.x = 5.6 * cos(-2.092350);
+        v.y = 5.6 * sin(-2.092350);
+        v.z = 0.0;
+        references.points.push_back(v);
+
+        float beam_angle = -2.092350 + 0.0057856218349117;
+        // first and last beam are already included
+        for (int i = 0; i < 723; i++, beam_angle += 0.0057856218349117)
+        {
+            v.x = 5.6 * cos(beam_angle);
+            v.y = 5.6 * sin(beam_angle);
+            v.z = 0.0;
+            references.points.push_back(v);
+        }
+
+        v.x = 5.6 * cos(2.092350);
+        v.y = 5.6 * sin(2.092350);
+        v.z = 0.0;
+        references.points.push_back(v);
+
+        v.x = 0.02 * cos(2.092350);
+        v.y = 0.02 * sin(2.092350);
+        v.z = 0.0;
+        references.points.push_back(v);
+
+        pub_test_datmo_marker.publish(references);
     }
 
-    v.x = 5.6 * cos(2.092350);
-    v.y = 5.6 * sin(2.092350);
-    v.z = 0.0;
-    references.points.push_back(v);
-
-    v.x = 0.02 * cos(2.092350);
-    v.y = 0.02 * sin(2.092350);
-    v.z = 0.0;
-    references.points.push_back(v);
-
-    pub_test_datmo_marker.publish(references);
-}
-
-void display_graphical_markers()
-{
-
-    visualization_msgs::Marker marker;
-
-    marker.header.frame_id = "laser";
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "test_datmo_marker";
-    marker.id = 0;
-    marker.type = visualization_msgs::Marker::POINTS;
-    marker.action = visualization_msgs::Marker::ADD;
-
-    marker.pose.orientation.w = 1;
-
-    marker.scale.x = 0.05;
-    marker.scale.y = 0.05;
-
-    marker.color.a = 1.0;
-
-    // ROS_INFO("%i points to display", nb_pts);
-    for (int loop = 0; loop < nb_pts; loop++)
+    void display_graphical_markers()
     {
-        geometry_msgs::Point p;
-        std_msgs::ColorRGBA c;
 
-        p.x = display[loop].x;
-        p.y = display[loop].y;
-        p.z = display[loop].z;
+        visualization_msgs::Marker marker;
 
-        c.r = colors[loop].r;
-        c.g = colors[loop].g;
-        c.b = colors[loop].b;
-        c.a = colors[loop].a;
+        marker.header.frame_id = "laser";
+        marker.header.stamp = ros::Time::now();
+        marker.ns = "test_datmo_marker";
+        marker.id = 0;
+        marker.type = visualization_msgs::Marker::POINTS;
+        marker.action = visualization_msgs::Marker::ADD;
 
-        // ROS_INFO("(%f, %f, %f) with rgba (%f, %f, %f, %f)", p.x, p.y, p.z, c.r, c.g, c.b, c.a);
-        marker.points.push_back(p);
-        marker.colors.push_back(c);
+        marker.pose.orientation.w = 1;
+
+        marker.scale.x = 0.05;
+        marker.scale.y = 0.05;
+
+        marker.color.a = 1.0;
+
+        // ROS_INFO("%i points to display", nb_pts);
+        for (int loop = 0; loop < nb_pts; loop++)
+        {
+            geometry_msgs::Point p;
+            std_msgs::ColorRGBA c;
+
+            p.x = display[loop].x;
+            p.y = display[loop].y;
+            p.z = display[loop].z;
+
+            c.r = colors[loop].r;
+            c.g = colors[loop].g;
+            c.b = colors[loop].b;
+            c.a = colors[loop].a;
+
+            // ROS_INFO("(%f, %f, %f) with rgba (%f, %f, %f, %f)", p.x, p.y, p.z, c.r, c.g, c.b, c.a);
+            marker.points.push_back(p);
+            marker.colors.push_back(c);
+        }
+
+        pub_test_datmo_marker.publish(marker);
+        populateMarkerReference();
     }
-
-    pub_test_datmo_marker.publish(marker);
-    populateMarkerReference();
-}
-
 };
 
 int main(int argc, char **argv)

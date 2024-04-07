@@ -181,9 +181,6 @@ void datmo::perform_basic_clustering()
         }
     }
 
-    // Dont forget to update the different information for the last cluster
-    //...
-
     cluster_end[nb_clusters] = nb_beams;
 
 } // perform_basic_clustering
@@ -213,12 +210,9 @@ void datmo::perform_advanced_clustering()
         {
             if (dynamic[i])
             {
-                // ROS_INFO("aI AM DYNAMI C");
                 current_cluster_dynamic++;
             }
         }
-
-        // ROS_INFO("aI AM DYNAMI C %f", ( (float) current_cluster_dynamic / (float) (cluster_end[loop_cluster] - (float) cluster_start[loop_cluster] +1)) * 100);
 
         cluster_dynamic[loop_cluster] = ((float)current_cluster_dynamic / (float)(cluster_end[loop_cluster] - (float)cluster_start[loop_cluster] + 1)) * 100;
     }
@@ -248,7 +242,7 @@ int datmo::compute_nb_dynamic(int start, int end)
 // DETECTION OF PERSONS
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////*/
-void datmo::detect_legs() // TO DO
+void datmo::detect_legs()
 {
     // TO COMPLETE
     // a leg is a cluster:
@@ -263,26 +257,12 @@ void datmo::detect_legs() // TO DO
 
     for (int loop = 0; loop < nb_clusters; loop++) // loop over all the clusters
     {
-        ROS_INFO("CLUSTER SIZE, %f", cluster_size[loop]);
-
-
-
-
         if (cluster_size[loop] > leg_size_min && cluster_size[loop] < leg_size_max)
         {
 
             // save the cluster corresponding to a leg
             leg_cluster[nb_legs_detected] = loop;
 
-            /*
-            //for each point of the cluster[loop] ??
-            for(int i = cluster_start[loop]; i < cluster_end[loop]; i++){
-                //add the point to the leg_detected[nb_legs_detected]
-                leg_detected[nb_legs_detected]
-            }
-            */
-
-            // ?????
             leg_detected[nb_legs_detected] = cluster_middle[loop];
 
             // dynamic if the number of points dynamic > dynamic_threshold
@@ -330,17 +310,13 @@ void datmo::detect_persons()
                 middle_of_person.y = (leg_detected[loop_leg_right].y + leg_detected[loop_leg_left].y) / 2;
 
                 person_detected[nb_persons_detected] = middle_of_person;
-                
+
                 person_dynamic[nb_persons_detected] = leg_dynamic[loop_leg_right] || leg_dynamic[loop_leg_left];
 
                 leg_right[nb_persons_detected] = loop_leg_right;
                 leg_left[nb_persons_detected] = loop_leg_left;
 
-
-                ROS_INFO("RIGHT, %i. LEFT %i", leg_right[nb_persons_detected], leg_left[nb_persons_detected]);
-
                 nb_persons_detected++;
-
 
                 break; // found corresponding left leg for right one
             }
@@ -358,11 +334,6 @@ void datmo::detect_a_moving_person() // TO DO
     // do not forget to publish person_tracked
     ROS_INFO("detecting a moving person");
 
-    // if (!nb_persons_detected) {
-    //     is_person_tracked = false;
-    // }
-
-
     geometry_msgs::Point original;
     original.x = 0;
     original.y = 0;
@@ -370,22 +341,26 @@ void datmo::detect_a_moving_person() // TO DO
     float distance_min = uncertainty_max;
     int nearest_person_index = -1;
 
-    for (int loop_persons = 0; loop_persons < nb_persons_detected; loop_persons++) {
-        if (person_dynamic[loop_persons]) {
+    for (int loop_persons = 0; loop_persons < nb_persons_detected; loop_persons++)
+    {
+        if (person_dynamic[loop_persons])
+        {
 
-                float dist = distancePoints(original, person_detected[loop_persons]);
+            float dist = distancePoints(original, person_detected[loop_persons]);
 
-                if (dist < distance_min) {
-                    nearest_person_index = loop_persons;
-                    distance_min = dist;
-                }
+            if (dist < distance_min)
+            {
+                nearest_person_index = loop_persons;
+                distance_min = dist;
             }
         }
+    }
 
-    if (nearest_person_index != -1) {
+    if (nearest_person_index != -1)
+    {
         person_tracked = person_detected[nearest_person_index];
         pub_datmo.publish(person_tracked);
-        is_person_tracked =1;
+        is_person_tracked = 1;
     }
 
     ROS_INFO("a moving person detected");
@@ -407,22 +382,21 @@ void datmo::track_a_person()
     // association between the tracked person and the possible detection
     for (int loop_persons = 0; loop_persons < nb_persons_detected; loop_persons++)
     {
+        // we search for the person_detected which is the closest one to the person_tracked
+        // we store the related information in index_min and distance_min
         float dist = distancePoints(person_tracked, person_detected[loop_persons]);
 
-        if (dist < distance_min && dist <= uncertainty) {
+        if (dist < distance_min && dist <= uncertainty)
+        {
             index_min = loop_persons;
             distance_min = dist;
         }
-
-
-        // we search for the person_detected which is the closest one to the person_tracked
-        // we store the related information in index_min and distance_min
     }
 
-    if (index_min != -1) {
+    if (index_min != -1)
+    {
         associated = true;
     }
-
 
     if (associated)
     {
@@ -433,7 +407,6 @@ void datmo::track_a_person()
 
         person_tracked = person_detected[index_min];
         pub_datmo.publish(person_tracked);
-    
     }
     else
     {
@@ -442,8 +415,6 @@ void datmo::track_a_person()
         frequency -= 1;
         uncertainty += uncertainty_inc;
     }
-
-    // do not forget to update person_tracked according to the current association
 
     ROS_INFO("tracking of a person done");
 }
@@ -479,7 +450,6 @@ void datmo::scanCallback(const sensor_msgs::LaserScan::ConstPtr &scan)
         current_scan[loop].x = r[loop] * cos(beam_angle);
         current_scan[loop].y = r[loop] * sin(beam_angle);
         current_scan[loop].z = 0.0;
-        // ROS_INFO("laser[%i]: (%f, %f) -> (%f, %f)", loop, range[loop], beam_angle*180/M_PI, current_scan[loop].x, current_scan[loop].y);
     }
 
 } // scanCallback
